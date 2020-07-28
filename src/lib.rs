@@ -20,7 +20,11 @@ impl Arg {
             false => {}
         }
         match is_const(s) {
-            true => prefix.push('K'),
+            true => {
+                if is_reference(s) || is_pointer(s) {
+                    prefix.push('K')
+                }
+            }
             false => {}
         }
         let name = extract_type(s);
@@ -31,8 +35,50 @@ impl Arg {
         }
     }
 
-    fn max_s(&self) -> u32 {
-        self.prefix.len() as u32
+    fn mangled(&self) -> String {
+        if is_pod(&self.name) {
+            if !self.prefix.contains("P") && !self.prefix.contains("R") {
+                return format!("{}", mangle_pod(&self.name));
+            } else {
+                return format!("{}{}", &self.prefix, &self.name);
+            }
+        } else {
+            return format!("{}{}{}", &self.prefix, self.name.len(), &self.name);
+        }
+    }
+
+    fn s_list(&self) -> Vec<String> {
+        let mut list = vec![];
+
+        if is_pod(&self.name) {
+            if !self.prefix.contains("P") && !self.prefix.contains("R") {
+                return list;
+            }
+            // If type is POD but pointer or reference.
+            let mangled_type = mangle_pod(&self.name);
+            list.push(mangled_type.to_string());
+            match self.prefix.as_str() {
+                "P" => {
+                    list.push(format!("P{}", mangled_type));
+                }
+                "R" => {
+                    list.push(format!("R{}", mangled_type));
+                }
+                "PK" => {
+                    list.push(format!("K{}", mangled_type));
+                    list.push(format!("PK{}", mangled_type));
+                }
+                "RK" => {
+                    list.push(format!("K{}", mangled_type));
+                    list.push(format!("RK{}", mangled_type));
+                }
+                _ => panic!("Invalid prefix: {}", self.prefix),
+            }
+        } else {
+
+        }
+
+        list
     }
 }
 
@@ -49,18 +95,6 @@ impl Args {
         self.list.push(arg.clone());
     }
 
-    fn find_index(&self, type_name: &str) -> Option<usize> {
-        let mut idx = 0;
-        for arg in self.list.iter() {
-            if arg.name == type_name {
-                return Some(idx);
-            }
-            idx += 1;
-        }
-
-        None
-    }
-
     fn s_list(&self) -> Vec<String> {
         let mut list = vec![];
 
@@ -68,6 +102,19 @@ impl Args {
             let name = format!("{}{}", arg.name.len(), arg.name.to_string());
             if !list.contains(&name) {
                 list.push(name);
+
+                // POD type.
+                if is_pod(&arg.name) {
+                    if !arg.prefix.contains("P") && !arg.prefix.contains("R") {
+                        // Not pointer or reference.
+                        continue;
+                    } else {
+                        // Pointer or reference.
+                        let mut tmp = arg.s_list();
+                        list.append(&mut tmp);
+                        continue;
+                    }
+                }
 
                 // Prefix length 2. e.g. "RK".
                 if arg.prefix.len() == 2 {
@@ -82,7 +129,7 @@ impl Args {
                         list.push(name);
                     }
                 }
-                // Prefix length 1. e.g. "K"
+                // Prefix length 1. e.g. "P"
                 if arg.prefix.len() == 1 {
                     let name = format!("{}{}{}", arg.prefix, arg.name.len(), arg.name.to_string());
                     if !list.contains(&name) {
@@ -100,13 +147,21 @@ impl Args {
     fn to_string(&self) -> String {
         let mut result = String::new();
 
+        let s_list = self.s_list();
+        let mut name_list = vec![];
+
         for arg in self.list.iter() {
-            match self.find_index(&arg.name) {
-                Some(idx) => {}
-                None => {
-                    result.push_str(&arg.prefix);
-                    result.push_str(&arg.name.len().to_string());
-                    result.push_str(&arg.name);
+            // First, if not in `name_list` then append full mangled name.
+            // Else, append as S notation.
+            if !name_list.contains(&arg.name) {
+                result.push_str(&arg.prefix);
+                result.push_str(&arg.name.len().to_string());
+                result.push_str(&arg.name);
+                name_list.push(arg.name.clone());
+            } else {
+                match s_list.iter().position(|x| x == &arg.name) {
+                    Some(idx) => {}
+                    None => {}
                 }
             }
         }
@@ -133,6 +188,26 @@ fn is_const(arg: &str) -> bool {
     match arg.contains("const") {
         true => true,
         false => false,
+    }
+}
+
+fn is_pod(type_name: &str) -> bool {
+    match type_name {
+        "int" => true,
+        "float" => true,
+        "double" => true,
+        "char" => true,
+        _ => false,
+    }
+}
+
+fn mangle_pod(type_name: &str) -> &'static str {
+    match type_name {
+        "int" => "i",
+        "float" => "f",
+        "double" => "d",
+        "char" => "c",
+        _ => panic!("Invalid type name: {}", type_name),
     }
 }
 
@@ -243,6 +318,7 @@ pub fn mangle_call(item: TokenStream) -> TokenStream {
     item
 }
 
+[cfg(test)]
 mod tests {
     #[test]
     fn test_args_s_list() {
