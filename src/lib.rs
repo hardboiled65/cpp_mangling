@@ -68,26 +68,29 @@ impl Args {
             let name = format!("{}{}", arg.name.len(), arg.name.to_string());
             if !list.contains(&name) {
                 list.push(name);
-            }
-            // Prefix length 2. e.g. "RK".
-            if arg.prefix.len() == 2 {
-                let ch = &arg.prefix[1..];
-                let name = format!("{}{}{}", ch, arg.name.len(), arg.name.to_string());
-                if !list.contains(&name) {
-                    list.push(name);
+
+                // Prefix length 2. e.g. "RK".
+                if arg.prefix.len() == 2 {
+                    let ch = &arg.prefix[1..];
+                    let name = format!("{}{}{}", ch, arg.name.len(), arg.name.to_string());
+                    if !list.contains(&name) {
+                        list.push(name);
+                    }
+                    let ch = &arg.prefix[..];
+                    let name = format!("{}{}{}", ch, arg.name.len(), arg.name.to_string());
+                    if !list.contains(&name) {
+                        list.push(name);
+                    }
                 }
-                let ch = &arg.prefix[..];
-                let name = format!("{}{}{}", ch, arg.name.len(), arg.name.to_string());
-                if !list.contains(&name) {
-                    list.push(name);
+                // Prefix length 1. e.g. "K"
+                if arg.prefix.len() == 1 {
+                    let name = format!("{}{}{}", arg.prefix, arg.name.len(), arg.name.to_string());
+                    if !list.contains(&name) {
+                        list.push(name);
+                    }
                 }
-            }
-            // Prefix length 1. e.g. "K"
-            if arg.prefix.len() == 1 {
-                let name = format!("{}{}{}", arg.prefix, arg.name.len(), arg.name.to_string());
-                if !list.contains(&name) {
-                    list.push(name);
-                }
+            } else {
+                continue;
             }
         }
 
@@ -246,6 +249,7 @@ mod tests {
         let mut args = super::Args::new();
         args.push(&super::Arg::parse("const Foo&"));
         args.push(&super::Arg::parse("const Bar&"));
+        args.push(&super::Arg::parse("Foo*"));
 
         println!("{:?}", args.s_list());
     }
