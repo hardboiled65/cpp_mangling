@@ -4,7 +4,7 @@ use cpp_mangling::mangle_fn;
 fn useless_name() {
 }
 
-#[mangle_fn(Foo::Bar::baz(const QString& s, int i))]
+#[mangle_fn(Foo::Bar::baz(const QString&, int))]
 fn foo_bar_baz() {
 }
 

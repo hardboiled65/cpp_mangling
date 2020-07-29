@@ -56,7 +56,6 @@ impl Arg {
             }
             // If type is POD but pointer or reference.
             let mangled_type = mangle_pod(&self.name);
-            list.push(mangled_type.to_string());
             match self.prefix.as_str() {
                 "P" => {
                     list.push(format!("P{}", mangled_type));
@@ -75,7 +74,6 @@ impl Arg {
                 _ => panic!("Invalid prefix: {}", self.prefix),
             }
         } else {
-
         }
 
         list
@@ -101,7 +99,9 @@ impl Args {
         for arg in self.list.iter() {
             let name = format!("{}{}", arg.name.len(), arg.name.to_string());
             if !list.contains(&name) {
-                list.push(name);
+                if !is_pod(&arg.name) {
+                    list.push(name);
+                }
 
                 // POD type.
                 if is_pod(&arg.name) {
@@ -110,8 +110,12 @@ impl Args {
                         continue;
                     } else {
                         // Pointer or reference.
-                        let mut tmp = arg.s_list();
-                        list.append(&mut tmp);
+                        let tmp = arg.s_list();
+                        for mangled_pod in tmp.iter() {
+                            if !list.contains(&mangled_pod) {
+                                list.push(mangled_pod.to_string());
+                            }
+                        }
                         continue;
                     }
                 }
@@ -137,6 +141,11 @@ impl Args {
                     }
                 }
             } else {
+                // Name contains but only "P" or "R" not contains.
+                let mangled = arg.mangled();
+                if !list.contains(&mangled) {
+                    list.push(mangled);
+                }
                 continue;
             }
         }
@@ -159,10 +168,30 @@ impl Args {
                 result.push_str(&arg.name);
                 name_list.push(arg.name.clone());
             } else {
-                match s_list.iter().position(|x| x == &arg.name) {
+                println!("mangled: {}", arg.mangled());
+                match s_list.iter().position(|x| x == &arg.mangled()) {
+                    // Exact match.
                     Some(idx) => {
+                        result.push_str(&format!("S{}_", idx));
                     }
-                    None => {}
+                    // Partial match.
+                    None => {
+                        // Match with "P" or "R"
+                        let partial = format!("{}{}{}", &arg.prefix[..1], arg.name.len(), &arg.name);
+                        match s_list.iter().position(|x| x == &partial) {
+                            Some(_) => {}
+                            None => {
+                                let len_name = format!("{}{}", &arg.name.len(), &arg.name);
+                                match s_list.iter().position(|x| x == &len_name) {
+                                    Some(idx) => {
+                                        let s_notation = format!("{}S{}_", &arg.prefix[..1], idx);
+                                        result.push_str(&s_notation);
+                                    }
+                                    None => {}
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -242,7 +271,7 @@ fn mangle_args(args: &Vec<&str>) -> String {
     let mut result = Args::new();
     for arg in args.iter() {
         println!("mangle_args {:?}", arg);
-
+        result.push(&Arg::parse(&arg));
     }
 
     result.to_string()
@@ -276,7 +305,6 @@ fn mangle(s: &str) -> String {
     if args == "" {
         result.push('v');
     } else {
-        println!("`{}`", args);
         let args_list = args.split(',').map(|x| x.trim()).collect::<Vec<&str>>();
         result.push_str(&mangle_args(&args_list));
     }
@@ -322,13 +350,37 @@ pub fn mangle_call(item: TokenStream) -> TokenStream {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn test_is_pod() {
+        assert_eq!(super::is_pod("int"), true);
+    }
+
+    #[test]
     fn test_args_s_list() {
         let mut args = super::Args::new();
         args.push(&super::Arg::parse("const Foo&"));
         args.push(&super::Arg::parse("const Bar&"));
         args.push(&super::Arg::parse("Foo*"));
+        args.push(&super::Arg::parse("Foo*"));
 
         println!("{:?}", args.s_list());
+
+        let mut args = super::Args::new();
+        args.push(&super::Arg::parse("int"));
+        args.push(&super::Arg::parse("int*"));
+        args.push(&super::Arg::parse("int*"));
+
+        println!("{:?}", args.s_list());
+    }
+
+    #[test]
+    fn tset_args_to_string() {
+        let mut args = super::Args::new();
+        args.push(&super::Arg::parse("const Foo&"));
+        args.push(&super::Arg::parse("const Foo&"));
+        args.push(&super::Arg::parse("const Foo"));
+        args.push(&super::Arg::parse("Foo*"));
+
+        println!("{}", args.to_string());
     }
 
     #[test]
