@@ -171,7 +171,10 @@ impl Args {
                 }
                 name_list.push(arg.name.clone());
             } else {
-                println!("arg.mangled: {}", &arg.mangled());
+                if is_pod(&arg.name) && !result.contains(&arg.mangled()) {
+                    result.push_str(&arg.mangled());
+                    continue;
+                }
                 match s_list.iter().position(|x| x == &arg.mangled()) {
                     // Exact match.
                     Some(idx) => {
