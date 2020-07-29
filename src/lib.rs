@@ -389,6 +389,6 @@ mod tests {
         println!("{}", super::mangle(&s));
 
         assert_eq!(super::mangle("Foo::bar() const"), "_ZNK3Foo3barEv");
-        // assert_eq!(super::mangle("Foo::baz(const Bar&)"), "_ZN3Foo3bazERK3Bar");
+        assert_eq!(super::mangle("Foo::baz(const Bar&)"), "_ZN3Foo3bazERK3Bar");
     }
 }
