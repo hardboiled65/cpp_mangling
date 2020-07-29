@@ -160,7 +160,8 @@ impl Args {
                 name_list.push(arg.name.clone());
             } else {
                 match s_list.iter().position(|x| x == &arg.name) {
-                    Some(idx) => {}
+                    Some(idx) => {
+                    }
                     None => {}
                 }
             }
@@ -318,7 +319,7 @@ pub fn mangle_call(item: TokenStream) -> TokenStream {
     item
 }
 
-[cfg(test)]
+#[cfg(test)]
 mod tests {
     #[test]
     fn test_args_s_list() {
