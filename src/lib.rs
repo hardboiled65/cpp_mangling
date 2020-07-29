@@ -40,7 +40,7 @@ impl Arg {
             if !self.prefix.contains("P") && !self.prefix.contains("R") {
                 return format!("{}", mangle_pod(&self.name));
             } else {
-                return format!("{}{}", &self.prefix, &self.name);
+                return format!("{}{}", &self.prefix, mangle_pod(&self.name));
             }
         } else {
             return format!("{}{}{}", &self.prefix, self.name.len(), &self.name);
@@ -64,11 +64,9 @@ impl Arg {
                     list.push(format!("R{}", mangled_type));
                 }
                 "PK" => {
-                    list.push(format!("K{}", mangled_type));
                     list.push(format!("PK{}", mangled_type));
                 }
                 "RK" => {
-                    list.push(format!("K{}", mangled_type));
                     list.push(format!("RK{}", mangled_type));
                 }
                 _ => panic!("Invalid prefix: {}", self.prefix),
@@ -163,12 +161,17 @@ impl Args {
             // First, if not in `name_list` then append full mangled name.
             // Else, append as S notation.
             if !name_list.contains(&arg.name) {
-                result.push_str(&arg.prefix);
-                result.push_str(&arg.name.len().to_string());
-                result.push_str(&arg.name);
+                if !is_pod(&arg.name) {
+                    result.push_str(&arg.prefix);
+                    result.push_str(&arg.name.len().to_string());
+                    result.push_str(&arg.name);
+                } else {
+                    // POD type.
+                    result.push_str(&format!("{}", mangle_pod(&arg.name)));
+                }
                 name_list.push(arg.name.clone());
             } else {
-                println!("mangled: {}", arg.mangled());
+                println!("arg.mangled: {}", &arg.mangled());
                 match s_list.iter().position(|x| x == &arg.mangled()) {
                     // Exact match.
                     Some(idx) => {
@@ -177,7 +180,11 @@ impl Args {
                     // Partial match.
                     None => {
                         // Match with "P" or "R"
-                        let partial = format!("{}{}{}", &arg.prefix[..1], arg.name.len(), &arg.name);
+                        let partial = if !is_pod(&arg.name) {
+                            format!("{}{}{}", &arg.prefix[..1], arg.name.len(), &arg.name)
+                        } else {
+                            format!("{}{}", &arg.prefix[..1], mangle_pod(&arg.name))
+                        };
                         match s_list.iter().position(|x| x == &partial) {
                             Some(_) => {}
                             None => {
@@ -270,7 +277,6 @@ fn extract_type(arg: &str) -> String {
 fn mangle_args(args: &Vec<&str>) -> String {
     let mut result = Args::new();
     for arg in args.iter() {
-        println!("mangle_args {:?}", arg);
         result.push(&Arg::parse(&arg));
     }
 
@@ -355,6 +361,12 @@ mod tests {
     }
 
     #[test]
+    fn test_arg_s_list() {
+        let arg = super::Arg::parse("const int");
+        assert_eq!(arg.s_list().len(), 0);
+    }
+
+    #[test]
     fn test_args_s_list() {
         let mut args = super::Args::new();
         args.push(&super::Arg::parse("const Foo&"));
@@ -390,5 +402,6 @@ mod tests {
 
         assert_eq!(super::mangle("Foo::bar() const"), "_ZNK3Foo3barEv");
         assert_eq!(super::mangle("Foo::baz(const Bar&)"), "_ZN3Foo3bazERK3Bar");
+        assert_eq!(super::mangle("Foo::bar(int, const int*, int&)"), "_ZN3Foo3barEiPKiRi");
     }
 }
