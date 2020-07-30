@@ -64,9 +64,11 @@ impl Arg {
                     list.push(format!("R{}", mangled_type));
                 }
                 "PK" => {
+                    list.push(format!("K{}", mangled_type));
                     list.push(format!("PK{}", mangled_type));
                 }
                 "RK" => {
+                    list.push(format!("K{}", mangled_type));
                     list.push(format!("RK{}", mangled_type));
                 }
                 _ => panic!("Invalid prefix: {}", self.prefix),
@@ -167,12 +169,55 @@ impl Args {
                     result.push_str(&arg.name);
                 } else {
                     // POD type.
-                    result.push_str(&format!("{}", mangle_pod(&arg.name)));
+                    match arg.prefix.as_str() {
+                        "PK" => {
+                            result.push_str(&format!("PK{}", mangle_pod(&arg.name)));
+                        }
+                        "RK" => {
+                            result.push_str(&format!("RK{}", mangle_pod(&arg.name)));
+                        }
+                        _ => {
+                            result.push_str(&format!("{}", mangle_pod(&arg.name)));
+                        }
+                    }
                 }
-                name_list.push(arg.name.clone());
+                if is_pod(&arg.name) {
+                    if !arg.mangled().contains("PK") && !arg.mangled().contains("RK") {
+                    } else {
+                        name_list.push(arg.name.clone());
+                    }
+                } else {
+                    name_list.push(arg.name.clone());
+                }
             } else {
                 if is_pod(&arg.name) && !result.contains(&arg.mangled()) {
-                    result.push_str(&arg.mangled());
+                    match arg.prefix.as_str() {
+                        "PK" => {
+                            let partial = format!("K{}", mangle_pod(&arg.name));
+                            match s_list.iter().position(|x| x == &partial) {
+                                Some(idx) => {
+                                    result.push_str(&format!("PS{}_", idx));
+                                }
+                                None => {
+                                    result.push_str(&arg.mangled());
+                                }
+                            }
+                        }
+                        "RK" => {
+                            let partial = format!("K{}", mangle_pod(&arg.name));
+                            match s_list.iter().position(|x| x == &partial) {
+                                Some(idx) => {
+                                    result.push_str(&format!("RS{}_", idx));
+                                }
+                                None => {
+                                    result.push_str(&arg.mangled());
+                                }
+                            }
+                        }
+                        _ => {
+                            result.push_str(&arg.mangled());
+                        }
+                    }
                     continue;
                 }
                 match s_list.iter().position(|x| x == &arg.mangled()) {
@@ -406,5 +451,6 @@ mod tests {
         assert_eq!(super::mangle("Foo::bar() const"), "_ZNK3Foo3barEv");
         assert_eq!(super::mangle("Foo::baz(const Bar&)"), "_ZN3Foo3bazERK3Bar");
         assert_eq!(super::mangle("Foo::bar(int, const int*, int&)"), "_ZN3Foo3barEiPKiRi");
+        assert_eq!(super::mangle("Foo::bar(const int*, const int&, const int*)"), "_ZN3Foo3barEPKiRS0_S1_")
     }
 }
