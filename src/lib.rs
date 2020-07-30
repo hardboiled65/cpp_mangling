@@ -231,8 +231,17 @@ impl Args {
                         let partial = if !is_pod(&arg.name) {
                             format!("{}{}{}", &arg.prefix[..1], arg.name.len(), &arg.name)
                         } else {
-                            format!("{}{}", &arg.prefix[..1], mangle_pod(&arg.name))
+                            if arg.prefix.len() == 0 {
+                                format!("{}", mangle_pod(&arg.name))
+                            } else {
+                                format!("{}{}", &arg.prefix[..1], mangle_pod(&arg.name))
+                            }
                         };
+                        // POD type.
+                        if is_pod(&arg.name) && arg.prefix.len() == 0 {
+                            result.push_str(&partial);
+                            continue;
+                        }
                         match s_list.iter().position(|x| x == &partial) {
                             Some(_) => {}
                             None => {
@@ -451,6 +460,7 @@ mod tests {
         assert_eq!(super::mangle("Foo::bar() const"), "_ZNK3Foo3barEv");
         assert_eq!(super::mangle("Foo::baz(const Bar&)"), "_ZN3Foo3bazERK3Bar");
         assert_eq!(super::mangle("Foo::bar(int, const int*, int&)"), "_ZN3Foo3barEiPKiRi");
-        assert_eq!(super::mangle("Foo::bar(const int*, const int&, const int*)"), "_ZN3Foo3barEPKiRS0_S1_")
+        assert_eq!(super::mangle("Foo::bar(const int*, const int&, const int*)"), "_ZN3Foo3barEPKiRS0_S1_");
+        assert_eq!(super::mangle("Foo::bar(const int*, const int&, const int)"), "_ZN3Foo3barEPKiRS0_i");
     }
 }
